@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Scam Check for Payments",
+  "version": "1.0.0",
+  "description": "Warns before you open phishing links, fake bank pages and UPI scam requests.",
+  "permissions": ["storage", "contextMenus", "activeTab"],
+  "host_permissions": ["http://127.0.0.1:8006/*", "http://localhost:8006/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "Scam Check" },
+  "options_page": "options.html"
+}
