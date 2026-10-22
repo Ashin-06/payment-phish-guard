@@ -141,8 +141,9 @@ def _model():
     return None
 
 
-def analyze_url(url: str) -> Verdict:
-    f = features(url)
+def analyze_url(url: str, f: dict | None = None, model=None) -> Verdict:
+    """`f` and `model` let an evaluation reuse computed features or score a candidate model."""
+    f = f or features(url)
     v = Verdict("url", url, entities={"host": f["_host"], "registered_domain": f["_reg"]})
     if f["official"]:
         v.add(-3, f"{f['_reg']} is an official domain", "reputation")
@@ -174,7 +175,7 @@ def analyze_url(url: str) -> Verdict:
         v.add(1, "deeply nested subdomains", "obfuscation")
     if not f["https"] and not f["official"]:
         v.add(0.5, "not using HTTPS", "transport")
-    m = _model()
+    m = model if model is not None else _model()
     if m is not None and not f["official"]:
         v.model_score = float(m.predict_proba(vector(f)[None, :])[0, 1])
     v.advice = ("Do not enter card, UPI PIN, OTP or login details here. Open your bank's app directly instead."

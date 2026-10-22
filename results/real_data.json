@@ -1,0 +1,47 @@
+{
+  "urls": {
+    "dataset": "PhiUSIIL (UCI #967), hostnames only, split by registered domain",
+    "urls": 220077,
+    "test_urls": 44481,
+    "test_phishing": 17402,
+    "shipped_model_synthetic_only": {
+      "pr_auc": 0.7634,
+      "roc_auc": 0.7834,
+      "caught_share": 0.2992,
+      "false_alarm_share": 0.0054
+    },
+    "trained_on_real_only": {
+      "pr_auc": 0.8808,
+      "roc_auc": 0.8725,
+      "caught_share": 0.4104,
+      "false_alarm_share": 0.0072
+    },
+    "trained_on_generated_plus_real": {
+      "pr_auc": 0.8804,
+      "roc_auc": 0.8726,
+      "caught_share": 0.413,
+      "false_alarm_share": 0.008,
+      "generated_holdout_pr_auc": 0.9973
+    },
+    "shipped": "url_model.joblib retrained on generated + all real hostnames"
+  },
+  "messages": {
+    "dataset": "SMS Spam Collection (UCI #228)",
+    "messages": 5574,
+    "test_messages": 1394,
+    "test_spam": 187,
+    "shipped_model_synthetic_only": {
+      "pr_auc": 0.2178,
+      "roc_auc": 0.5623,
+      "caught_share": 0.7914,
+      "false_alarm_share": 0.7548
+    },
+    "trained_on_generated_plus_real": {
+      "pr_auc": 0.9766,
+      "roc_auc": 0.991,
+      "caught_share": 0.9091,
+      "false_alarm_share": 0.0041
+    },
+    "shipped": "text_model.joblib retrained on generated + all real SMS"
+  }
+}

@@ -6,6 +6,7 @@
     python -m phishguard apk suspicious.apk
     python -m phishguard page https://example.com/login [--html saved.html]
     python -m phishguard train
+    python -m phishguard realdata --phiusiil PhiUSIIL_Phishing_URL_Dataset.csv --uci-sms SMSSpamCollection
     python -m phishguard serve --port 8006
 """
 from __future__ import annotations
@@ -47,6 +48,7 @@ def main(argv=None):
     p.add_argument("url")
     p.add_argument("--html", help="saved page source instead of fetching")
     sub.add_parser("train", add_help=False)
+    sub.add_parser("realdata", add_help=False)
     s = sub.add_parser("serve")
     s.add_argument("--port", type=int, default=8006)
     s.add_argument("--host", default="127.0.0.1")
@@ -65,6 +67,10 @@ def main(argv=None):
         from .train import main as train
 
         train(rest)
+    elif a.cmd == "realdata":
+        from .realdata import main as realdata
+
+        realdata(rest)
     elif a.cmd == "serve":
         import uvicorn
 
