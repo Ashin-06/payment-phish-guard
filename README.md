@@ -46,7 +46,7 @@ A genuine bank alert ("INR 2,340 debited from A/c XX4412 ... Not you? Call HDFC 
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q                     # 29 tests (includes generated APKs, v2 signing blocks, QR images and SSRF checks)
+python -m pytest -q                     # 31 tests (includes generated APKs, v2 signing blocks, QR images and SSRF checks)
 python -m phishguard serve              # web scanner + API on http://127.0.0.1:8006
 python -m phishguard check "<message, link or UPI ID>"
 python -m phishguard qr photo.jpg
@@ -85,14 +85,34 @@ Deployment settings:
 - `PHISHGUARD_ORIGINS` adds allowed CORS origins. Browser-extension origins are allowed by default.
 - Pages are only fetched server-side when `PHISHGUARD_FETCH=1`, and are never executed. Every hop, redirects included, must be http(s) to a public address, so the scanner cannot be used to reach localhost, private networks or cloud metadata endpoints.
 
-## Models and your own data
+## Models and real data
 
-The shipped models are trained on generated corpora: 6,000 links (official bank/payment domains vs. typosquats, homoglyphs, subdomain abuse, free hosting, IPs, shorteners, `@` tricks, APK links) and 4,000 messages built from real-world Indian scam and genuine-alert templates. The rules carry the explanations; the models add generalisation. To adapt the models to real traffic:
+The models started out trained only on generated corpora: 6,000 links (official bank and payment domains against typosquats, homoglyphs, subdomain abuse, free hosting, IPs, shorteners, `@` tricks, APK links) and 4,000 messages built from real Indian scam and genuine-alert templates. The rules carry the explanations; the models add generalisation.
+
+`python -m phishguard realdata` measured those models on public real data, then retrained them (results in `results/real_data.json`):
+- **PhiUSIIL** ([UCI #967](https://archive.ics.uci.edu/dataset/967), 235,795 URLs).
+- **SMS Spam Collection** (UCI #228, 5,574 real SMS).
+
+| Real data | Model | PR-AUC | Caught | False alarms |
+|---|---|---|---|---|
+| PhiUSIIL hostnames, split by domain (44,481 test, 17,402 phishing) | generated data only | 0.763 | 29.9% | 0.5% |
+| | **generated + real (shipped now)** | **0.880** | 41.3% | 0.8% |
+| UCI SMS (1,394 test, 187 spam) | generated data only | 0.218 | 79% | **75%** |
+| | **generated + real (shipped now)** | **0.977** | 90.9% | 0.4% |
+
+Notes:
+- **Only hostnames are used from PhiUSIIL.** In that dataset every legitimate URL is a bare `https://` homepage, while phishing URLs often have paths or plain `http`. A model trained on full URLs learns "has a path = phishing" and would flag real bank pages.
+- **Train and test are split by registered domain**, so no site appears on both sides.
+- **URL "caught" is the full verdict** (rules + model) at the suspicious level. Generic global phishing rarely trips the Indian-bank brand rules, and the model alone can add at most 30 of the 100 risk points. So the share caught is modest, and false alarms stay under 1%.
+- **The original message model was badly off on real SMS:** it rated three quarters of ordinary texts as scams. Retraining on real data fixed that.
+- **The generated Indian-bank cases are unchanged** (held-out PR-AUC 0.997), and the test suite still passes.
+
+To adapt the models to your own traffic:
 
 ```bash
 python -m phishguard train --urls my_urls.csv            # url,label
 python -m phishguard train --messages my_sms.csv         # text,label
-python -m phishguard train --uci-sms SMSSpamCollection   # UCI SMS Spam Collection
+python -m phishguard realdata --phiusiil PhiUSIIL_Phishing_URL_Dataset.csv --uci-sms SMSSpamCollection --update-models
 ```
 
 `phishguard/brands.py` holds the reference data: each brand's official domains, official Android package names, and known UPI handles. Keep it current. Put official signing-certificate SHA-256 fingerprints in `phishguard/official_certs.json` (`{"com.sbi.lotusintouch": ["<sha256>"]}`) to detect repackaged copies of real apps.
@@ -110,6 +130,7 @@ phishguard/
   engine.py    input routing, QR decoding (OpenCV)
   verdict.py   shared result type and risk scale
   train.py     corpora and model training
+  realdata.py  scoring and retraining on PhiUSIIL URLs and UCI SMS
   api.py       FastAPI service with API key, rate limit, CORS
 web/index.html web scanner
 extension/     Manifest V3 browser extension
