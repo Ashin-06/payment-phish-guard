@@ -25,7 +25,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import FeatureUnion, make_pipeline
 
 from .brands import BRANDS, COMMON_SAFE, FREE_HOSTING, RISKY_TLDS, SHORTENERS
-from .url import FEATURE_NAMES, features, vector
+from .url import features, vector
 
 MODELS = Path(__file__).resolve().parent / "models"
 NEWS = ["thehindu.com", "ndtv.com", "indiatoday.in", "moneycontrol.com", "livemint.com", "zerodha.com", "groww.in",
