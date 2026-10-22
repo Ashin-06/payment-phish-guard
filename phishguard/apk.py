@@ -44,6 +44,11 @@ SERVICE_RISK = {
 }
 
 
+MAX_MANIFEST_BYTES = 8 * 1024 * 1024
+MAX_ZIP_ENTRIES = 60_000
+MAX_SIG_FILE_BYTES = 1024 * 1024
+
+
 class AxmlError(ValueError):
     pass
 
@@ -207,6 +212,8 @@ def signing_certificates(z: zipfile.ZipFile, raw: bytes) -> tuple[list[dict], li
     infos, schemes = [], []
     for n in z.namelist():
         if n.upper().startswith("META-INF/") and n.upper().endswith((".RSA", ".DSA", ".EC")):
+            if z.getinfo(n).file_size > MAX_SIG_FILE_BYTES:
+                continue
             try:
                 for c in pkcs7.load_der_pkcs7_certificates(z.read(n)):
                     infos.append(certificate_info(c.public_bytes(Encoding.DER)))
@@ -233,11 +240,18 @@ def analyze_apk(data: bytes, filename: str = "app.apk") -> Verdict:
     v = Verdict("apk", filename, entities={"sha256": hashlib.sha256(data).hexdigest()})
     try:
         z = zipfile.ZipFile(io.BytesIO(data))
-        man = read_manifest(z.read("AndroidManifest.xml"))
-    except (zipfile.BadZipFile, KeyError, AxmlError, struct.error) as e:
+        info = z.getinfo("AndroidManifest.xml")
+        if info.file_size > MAX_MANIFEST_BYTES or len(z.infolist()) > MAX_ZIP_ENTRIES:
+            raise AxmlError("archive or manifest is implausibly large (possible zip bomb)")
+        man = read_manifest(z.read(info))
+    except (zipfile.BadZipFile, KeyError, AxmlError, struct.error, IndexError, UnicodeDecodeError) as e:
         v.add(3, f"not a readable APK ({e.__class__.__name__}): may be corrupted or deliberately malformed", "format")
         return v
-    certs, schemes = signing_certificates(z, data)
+    try:
+        certs, schemes = signing_certificates(z, data)
+    except (ValueError, struct.error, StopIteration, IndexError, zipfile.BadZipFile) as e:
+        certs, schemes = [], []
+        v.add(1.5, f"signing data could not be parsed ({e.__class__.__name__}): malformed or tampered", "signature")
     v.entities.update(package=man.package, version=man.version, permissions=man.permissions,
                       services=[s["name"] for s in man.services], signing_schemes=schemes, certificates=certs)
 

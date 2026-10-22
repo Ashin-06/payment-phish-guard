@@ -137,3 +137,36 @@ def test_v2_signing_block_certificate_is_read():
     assert schemes == ["v2"] and certs == [der]
     v = analyze_apk(patched, "v2.apk")
     assert "v2" in v.entities["signing_schemes"] and len(v.entities["certificates"]) == 2
+
+
+@pytest.mark.parametrize("url", ["http://127.0.0.1:8006/healthz", "http://169.254.169.254/latest/meta-data/",
+                                 "http://localhost/", "file:///etc/passwd", "http://10.0.0.5/admin", "ftp://example.com/x"])
+def test_fetch_refuses_internal_targets(url):
+    from phishguard.page import UnsafeURL, fetch
+
+    with pytest.raises(UnsafeURL):
+        fetch(url)
+
+
+def test_api_page_fetch_blocks_ssrf(monkeypatch):
+    monkeypatch.setenv("PHISHGUARD_FETCH", "1")
+    from phishguard.api import app
+
+    r = TestClient(app).post("/v1/scan/page", json={"url": "http://169.254.169.254/latest/meta-data/"})
+    assert r.status_code == 400 and "non-public" in r.json()["detail"]
+
+
+def test_malformed_signing_block_does_not_crash():
+    import struct
+
+    raw = apk("org.example.bad", ["android.permission.INTERNET"], cn="Example")
+    lp = lambda b: struct.pack("<I", len(b)) + b
+    value = lp(lp(lp(b"")))  # signer with no signed data inside
+    pair = struct.pack("<QI", len(value) + 4, 0x7109871A) + value
+    size = len(pair) + 8 + 16
+    block = struct.pack("<Q", size) + pair + struct.pack("<Q", size) + b"APK Sig Block 42"
+    eocd = raw.rfind(b"PK\x05\x06")
+    cd = struct.unpack_from("<I", raw, eocd + 16)[0]
+    patched = raw[:cd] + block + raw[cd:eocd + 16] + struct.pack("<I", cd + len(block)) + raw[eocd + 20:]
+    v = analyze_apk(patched, "bad.apk")
+    assert any("could not be parsed" in f.message for f in v.findings)
