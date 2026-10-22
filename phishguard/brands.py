@@ -51,7 +51,7 @@ UPI_HANDLES = {
     "okaxis", "oksbi", "okhdfcbank", "okicici", "ybl", "ibl", "axl", "paytm", "ptsbi", "pthdfc", "ptaxis", "ptyes",
     "upi", "apl", "yapl", "rapl", "ikwik", "freecharge", "airtel", "jio", "kotak", "kmbl", "hdfcbank", "icici",
     "sbi", "axisbank", "axisb", "yesbank", "yesbankltd", "idfcbank", "idfcfirst", "indus", "federal", "fbl", "pnb",
-    "barodampay", "boi", "cnrb", "unionbankofindia", "uboi", "aubank", "rbl", "dbs", "hsbc", "sc", "citi", "aubank",
+    "barodampay", "boi", "cnrb", "unionbankofindia", "uboi", "aubank", "rbl", "dbs", "hsbc", "sc", "citi",
     "waaxis", "wahdfcbank", "wasbi", "waicici", "naviaxis", "mbk", "timecosmos", "abfspay", "jupiteraxis", "fam", "slc",
     "superyes", "tapicici", "pingpay", "nsdl", "postbank", "ippb", "equitas", "jsb", "kbl", "kvb", "tmb", "csbpay", "dlb",
 }

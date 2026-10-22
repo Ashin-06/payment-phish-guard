@@ -24,4 +24,3 @@ document.getElementById("go").addEventListener("click", async () => {
   const res = await ask({ type: "scan-text", text });
   document.getElementById("out").innerHTML = res && res.ok ? render(res.verdict) + `<p>${esc(res.verdict.advice)}</p>` : esc(res && res.error);
 });
-</script>
