@@ -2,6 +2,7 @@
 (() => {
   const host = location.hostname;
   const ask = (msg) => new Promise((res) => chrome.runtime.sendMessage(msg, res));
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   function overlay(verdict, subject, onProceed) {
     document.getElementById("scamcheck-overlay")?.remove();
@@ -10,7 +11,7 @@
     const root = wrap.attachShadow({ mode: "closed" });
     const danger = verdict.level === "dangerous";
     const reasons = verdict.findings.filter((f) => f.weight > 0).slice(0, 5)
-      .map((f) => `<li>${f.message.replace(/</g, "&lt;")}</li>`).join("");
+      .map((f) => `<li>${esc(f.message)}</li>`).join("");
     root.innerHTML = `
       <style>
         .bg{position:fixed;inset:0;background:rgba(10,12,16,.6);z-index:2147483647;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif}
@@ -23,10 +24,10 @@
         .back{background:#0f6fde;color:#fff} .go{background:transparent;color:#5d6774;text-decoration:underline}
       </style>
       <div class="bg"><div class="box" role="alertdialog" aria-modal="true">
-        <h2>${danger ? "This looks like a scam" : "Be careful with this"} (risk ${verdict.risk}/100)</h2>
-        <div class="s">${String(subject).replace(/</g, "&lt;").slice(0, 200)}</div>
+        <h2>${danger ? "This looks like a scam" : "Be careful with this"} (risk ${esc(verdict.risk)}/100)</h2>
+        <div class="s">${esc(String(subject).slice(0, 200))}</div>
         <ul>${reasons}</ul>
-        <div class="a">${verdict.advice}</div>
+        <div class="a">${esc(verdict.advice)}</div>
         <div class="row">${onProceed ? '<button class="go">Open anyway</button>' : ""}<button class="back">${onProceed ? "Go back to safety" : "Close"}</button></div>
       </div></div>`;
     root.querySelector(".back").onclick = () => wrap.remove();
