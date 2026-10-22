@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scam Check</title>
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --ink:#14181d; --muted:#5d6774; --line:#e0e4e9; --accent:#0f6fde;
+          --safe:#11845b; --sus:#b36b00; --bad:#c62828; --chip:#eef1f5; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0d1014; --card:#151a20; --ink:#e6ebf1; --muted:#97a2b0; --line:#28303a; --accent:#5aa2ff;
+            --safe:#3fd19a; --sus:#f3aa44; --bad:#ff6b6b; --chip:#1e252e; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:820px; margin:0 auto; padding:28px 16px 60px; }
+  h1 { margin:0; font-size:24px; }
+  .sub { color:var(--muted); margin:4px 0 20px; }
+  .tabs { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+  .tabs button { background:var(--chip); color:var(--ink); }
+  .tabs button.on { background:var(--accent); color:#fff; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  textarea, input[type=text] { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); }
+  textarea { min-height:120px; resize:vertical; }
+  button { font:inherit; font-weight:600; border:0; border-radius:8px; padding:9px 16px; cursor:pointer; background:var(--accent); color:#fff; }
+  .row { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .hint { color:var(--muted); font-size:13px; }
+  .drop { border:2px dashed var(--line); border-radius:10px; padding:28px; text-align:center; color:var(--muted); cursor:pointer; }
+  .drop.over { border-color:var(--accent); }
+  #result { margin-top:18px; }
+  .verdict { display:flex; gap:16px; align-items:center; }
+  .gauge { width:84px; height:84px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:22px; flex:none; }
+  .level { font-size:20px; font-weight:800; text-transform:capitalize; }
+  .safe { color:var(--safe); } .suspicious { color:var(--sus); } .dangerous { color:var(--bad); }
+  ul.f { list-style:none; padding:0; margin:14px 0 0; }
+  ul.f li { padding:8px 0; border-top:1px solid var(--line); display:flex; gap:10px; }
+  .w { font:12px ui-monospace,Consolas,monospace; min-width:42px; text-align:right; color:var(--muted); padding-top:2px; }
+  .advice { margin-top:14px; padding:12px; border-radius:8px; background:var(--chip); }
+  details { margin-top:12px; } pre { white-space:pre-wrap; word-break:break-all; font-size:12px; background:var(--chip); padding:10px; border-radius:8px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Scam Check</h1>
+  <p class="sub">Paste a suspicious SMS, WhatsApp message, link or UPI ID, or upload a payment QR code or an APK someone sent you.</p>
+  <div class="tabs" role="tablist">
+    <button class="on" data-tab="text">Message / link / UPI</button>
+    <button data-tab="qr">QR code</button>
+    <button data-tab="apk">App (APK)</button>
+    <button data-tab="page">Web page</button>
+  </div>
+  <section class="card">
+    <div data-pane="text">
+      <textarea id="text" placeholder="e.g. Dear customer your SBI account will be blocked today. Update KYC https://sbi-kyc-update.xyz"></textarea>
+      <div class="row"><button id="go-text">Check</button><span class="hint">Nothing is stored. Links are analysed, not opened.</span></div>
+    </div>
+    <div data-pane="qr" hidden><div class="drop" id="drop-qr">Drop a QR image here or click to choose</div><input type="file" id="file-qr" accept="image/*" hidden></div>
+    <div data-pane="apk" hidden><div class="drop" id="drop-apk">Drop an .apk file here or click to choose</div><input type="file" id="file-apk" accept=".apk" hidden></div>
+    <div data-pane="page" hidden>
+      <input type="text" id="page-url" placeholder="https://suspicious.example/login">
+      <textarea id="page-html" placeholder="Optional: paste the page source (View source → copy). Without it the server fetches the page if allowed."></textarea>
+      <div class="row"><button id="go-page">Check page</button></div>
+    </div>
+  </section>
+  <div id="result"></div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const color = { safe: "var(--safe)", suspicious: "var(--sus)", dangerous: "var(--bad)" };
+
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+  document.querySelectorAll("[data-pane]").forEach((p) => (p.hidden = p.dataset.pane !== b.dataset.tab));
+}));
+
+function show(v) {
+  const pct = v.risk;
+  const ring = `conic-gradient(${color[v.level]} ${pct * 3.6}deg, var(--chip) 0deg)`;
+  const ents = Object.entries(v.entities || {}).filter(([k, val]) => k !== "analysed" && val && (!Array.isArray(val) || val.length));
+  $("#result").innerHTML = `<div class="card">
+    <div class="verdict">
+      <div class="gauge" style="background:${ring}"><div class="gauge" style="width:66px;height:66px;background:var(--card)">${pct}</div></div>
+      <div><div class="level ${v.level}">${esc(v.level)}</div><div class="hint">${esc(v.kind)} · risk ${pct}/100</div></div>
+    </div>
+    <ul class="f">${v.findings.map((f) => `<li><span class="w">${f.weight > 0 ? "+" : ""}${f.weight.toFixed(1)}</span><span>${esc(f.message)}</span></li>`).join("") || '<li><span class="w"></span><span>No warning signs found.</span></li>'}</ul>
+    <div class="advice">${esc(v.advice)}</div>
+    ${ents.length ? `<details><summary>Details</summary><pre>${esc(JSON.stringify(Object.fromEntries(ents), null, 2))}</pre></details>` : ""}
+  </div>`;
+}
+
+async function call(path, opts) {
+  $("#result").innerHTML = '<p class="hint">Checking…</p>';
+  const r = await fetch(path, opts);
+  const body = await r.json();
+  if (!r.ok) { $("#result").innerHTML = `<div class="card dangerous">${esc(body.detail || "Error")}</div>`; return; }
+  show(body);
+}
+
+$("#go-text").addEventListener("click", () => {
+  const input = $("#text").value.trim();
+  if (input) call("/v1/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
+});
+$("#go-page").addEventListener("click", () => {
+  const url = $("#page-url").value.trim(), html = $("#page-html").value;
+  if (url) call("/v1/scan/page", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(html ? { url, html } : { url }) });
+});
+
+function dropzone(zone, input, path, field) {
+  const send = (file) => { const fd = new FormData(); fd.append(field, file); call(path, { method: "POST", body: fd }); };
+  zone.addEventListener("click", () => input.click());
+  input.addEventListener("change", () => input.files[0] && send(input.files[0]));
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("over"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+  zone.addEventListener("drop", (e) => { e.preventDefault(); zone.classList.remove("over"); e.dataTransfer.files[0] && send(e.dataTransfer.files[0]); });
+}
+dropzone($("#drop-qr"), $("#file-qr"), "/v1/scan/qr", "image");
+dropzone($("#drop-apk"), $("#file-apk"), "/v1/scan/apk", "apk");
+</script>
+</body>
+</html>
