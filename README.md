@@ -46,7 +46,7 @@ A genuine bank alert ("INR 2,340 debited from A/c XX4412 ... Not you? Call HDFC 
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q                     # 21 tests (includes generated APKs, v2 signing blocks and QR images)
+python -m pytest -q                     # 29 tests (includes generated APKs, v2 signing blocks, QR images and SSRF checks)
 python -m phishguard serve              # web scanner + API on http://127.0.0.1:8006
 python -m phishguard check "<message, link or UPI ID>"
 python -m phishguard qr photo.jpg
@@ -83,7 +83,7 @@ Deployment settings:
 - `PHISHGUARD_API_KEY` requires an `X-API-Key` header.
 - `PHISHGUARD_RATE` sets a per-client token-bucket rate limit (default 120/min).
 - `PHISHGUARD_ORIGINS` adds allowed CORS origins. Browser-extension origins are allowed by default.
-- Pages are only fetched server-side when `PHISHGUARD_FETCH=1`, and are never executed.
+- Pages are only fetched server-side when `PHISHGUARD_FETCH=1`, and are never executed. Every hop, redirects included, must be http(s) to a public address, so the scanner cannot be used to reach localhost, private networks or cloud metadata endpoints.
 
 ## Models and your own data
 

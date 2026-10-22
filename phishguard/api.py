@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from .apk import analyze_apk
 from .engine import analyze_qr, analyze_text
 from .message import analyze_message
-from .page import analyze_page, fetch
+from .page import UnsafeURL, analyze_page, fetch
 from .upi import analyze_upi
 from .url import analyze_url
 
@@ -120,6 +120,8 @@ def scan_page(body: PageIn):
             raise HTTPException(400, "send the page HTML, or enable server-side fetching with PHISHGUARD_FETCH=1")
         try:
             url, html = fetch(url)
+        except UnsafeURL as e:
+            raise HTTPException(400, str(e)) from e
         except Exception as e:  # network errors of every kind
             raise HTTPException(502, f"could not fetch page: {e}") from e
     return analyze_page(html, url).as_dict()

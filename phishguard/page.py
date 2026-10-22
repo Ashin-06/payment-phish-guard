@@ -126,16 +126,48 @@ def analyze_page(html: str, page_url: str) -> Verdict:
     return v
 
 
-def fetch(url: str, timeout: float = 8.0, max_bytes: int = 2_000_000) -> tuple[str, str]:
-    """Fetch a page without running scripts. Returns (final_url, html)."""
+class UnsafeURL(ValueError):
+    """The URL points somewhere a server-side fetch must never go."""
+
+
+def _require_public(url: str) -> None:
+    """Block server-side request forgery: only http(s) to hosts that resolve to public
+    addresses (no localhost, private ranges, link-local cloud metadata, multicast)."""
+    import ipaddress
+    import socket
+
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise UnsafeURL("only http and https URLs can be fetched")
+    port = parts.port or (443 if parts.scheme == "https" else 80)
+    try:
+        infos = socket.getaddrinfo(parts.hostname, port, type=socket.SOCK_STREAM)
+    except socket.gaierror as e:
+        raise UnsafeURL(f"cannot resolve {parts.hostname}") from e
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if not ip.is_global or ip.is_multicast:
+            raise UnsafeURL(f"{parts.hostname} resolves to a non-public address ({ip})")
+
+
+def fetch(url: str, timeout: float = 8.0, max_bytes: int = 2_000_000, max_redirects: int = 5) -> tuple[str, str]:
+    """Fetch a page without running scripts. Every hop, redirects included, must be a
+    public http(s) address. Returns (final_url, html)."""
     import httpx
 
-    with httpx.Client(follow_redirects=True, timeout=timeout, headers={"User-Agent": "Mozilla/5.0 (PhishGuard scanner)"}) as cl:
-        with cl.stream("GET", url) as r:
-            chunks, total = [], 0
-            for chunk in r.iter_bytes():
-                chunks.append(chunk)
-                total += len(chunk)
-                if total > max_bytes:
-                    break
-            return str(r.url), b"".join(chunks).decode(r.encoding or "utf-8", "replace")
+    headers = {"User-Agent": "Mozilla/5.0 (PhishGuard scanner)"}
+    with httpx.Client(follow_redirects=False, timeout=timeout, headers=headers) as cl:
+        for _ in range(max_redirects + 1):
+            _require_public(url)
+            with cl.stream("GET", url) as r:
+                if r.is_redirect:
+                    url = urljoin(url, r.headers.get("location", ""))
+                    continue
+                chunks, total = [], 0
+                for chunk in r.iter_bytes():
+                    chunks.append(chunk)
+                    total += len(chunk)
+                    if total > max_bytes:
+                        break
+                return str(r.url), b"".join(chunks).decode(r.encoding or "utf-8", "replace")
+    raise UnsafeURL("too many redirects")
