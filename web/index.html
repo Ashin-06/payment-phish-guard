@@ -92,7 +92,12 @@ function show(v) {
 
 async function call(path, opts) {
   $("#result").innerHTML = '<p class="hint">Checking…</p>';
-  const r = await fetch(path, opts);
+  const send = () => fetch(path, { ...opts, headers: { ...(opts.headers || {}), ...(sessionStorage.getItem("apiKey") ? { "X-API-Key": sessionStorage.getItem("apiKey") } : {}) } });
+  let r = await send();
+  if (r.status === 401) {  // the service has API keys: ask once, keep it for this tab only
+    sessionStorage.setItem("apiKey", prompt("API key for this service") || "");
+    r = await send();
+  }
   const body = await r.json();
   if (!r.ok) { $("#result").innerHTML = `<div class="card dangerous">${esc(body.detail || "Error")}</div>`; return; }
   show(body);

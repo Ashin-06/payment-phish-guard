@@ -101,7 +101,8 @@ def test_api_endpoints():
     from phishguard.api import app
 
     c = TestClient(app)
-    assert c.get("/healthz").json()["ok"]
+    assert c.get("/healthz").json() == {"status": "ok"}
+    assert c.get("/readyz").json()["checks"] == {"models": True}
     r = c.post("/v1/scan", json={"input": "sbi-kyc-update.xyz/login"}).json()
     assert r["level"] != "safe" and r["kind"] == "url"
     r = c.post("/v1/scan/qr", files={"image": ("q.png", qr_png("https://www.icicibank.com"), "image/png")}).json()

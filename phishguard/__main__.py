@@ -7,12 +7,13 @@
     python -m phishguard page https://example.com/login [--html saved.html]
     python -m phishguard train
     python -m phishguard realdata --phiusiil PhiUSIIL_Phishing_URL_Dataset.csv --uci-sms SMSSpamCollection
-    python -m phishguard serve --port 8006
+    python -m phishguard serve                       # web scanner + API (settings: PHISHGUARD_* env)
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -50,8 +51,8 @@ def main(argv=None):
     sub.add_parser("train", add_help=False)
     sub.add_parser("realdata", add_help=False)
     s = sub.add_parser("serve")
-    s.add_argument("--port", type=int, default=8006)
-    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, help="default PHISHGUARD_PORT or 8006")
+    s.add_argument("--host", help="default PHISHGUARD_HOST or 127.0.0.1; any other address needs API keys")
     a, rest = ap.parse_known_args(argv)
 
     if a.cmd == "check":
@@ -74,7 +75,17 @@ def main(argv=None):
     elif a.cmd == "serve":
         import uvicorn
 
-        uvicorn.run("phishguard.api:app", host=a.host, port=a.port)
+        from . import ops
+
+        for name, val in (("HOST", a.host), ("PORT", a.port)):
+            if val is not None:
+                os.environ[f"PHISHGUARD_{name}"] = str(val)
+        try:
+            settings = ops.load_settings()  # fail here, before uvicorn, with a readable message
+        except ops.ConfigError as e:
+            sys.exit(f"configuration error: {e}")
+        ops.setup_logging(settings.log_level)
+        uvicorn.run("phishguard.api:app", host=settings.host, port=settings.port, log_config=None, access_log=False)
 
 
 if __name__ == "__main__":
