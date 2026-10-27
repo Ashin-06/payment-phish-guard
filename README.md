@@ -46,13 +46,20 @@ A genuine bank alert ("INR 2,340 debited from A/c XX4412 ... Not you? Call HDFC 
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q                     # 31 tests (includes generated APKs, v2 signing blocks, QR images and SSRF checks)
-python -m phishguard serve              # web scanner + API on http://127.0.0.1:8006
+python -m pytest -q                     # 49 tests (includes generated APKs, v2 signing blocks, QR images and SSRF checks)
+python -m phishguard serve              # web scanner + API on http://127.0.0.1:8006 (demo mode, no keys)
 python -m phishguard check "<message, link or UPI ID>"
 python -m phishguard qr photo.jpg
 python -m phishguard apk suspicious.apk
 python -m phishguard page https://suspicious.example/login
 python -m phishguard train              # retrain models (optionally with your own data, see below)
+```
+
+In a container (production mode; see [docs/runbook.md](docs/runbook.md)):
+
+```bash
+docker build -t payment-phish-guard:1.0.0 .
+docker run -p 8006:8006 -e PHISHGUARD_API_KEYS='{"sha256:...": {"user": "extension", "role": "scanner"}}' payment-phish-guard:1.0.0
 ```
 
 ### Browser extension (Chrome / Edge / Brave)
@@ -75,14 +82,15 @@ What the extension does:
 | `POST /v1/scan/page` | `{"url": "...", "html": "..."}` (html optional when `PHISHGUARD_FETCH=1`) |
 | `POST /v1/scan/qr` | multipart `image` |
 | `POST /v1/scan/apk` | multipart `apk` (up to 150 MB) |
-| `GET /healthz` | status and which models are loaded |
+| `GET /healthz`, `/readyz` | liveness; readiness (both models loaded) |
+| `GET /metrics` | Prometheus metrics (role `monitor`) |
 
 Every response has the same shape: `risk` (0–100), `level` (safe / suspicious / dangerous), `findings` (each with a weight, message and category), `entities` (what was extracted) and `advice`.
 
-Deployment settings:
-- `PHISHGUARD_API_KEY` requires an `X-API-Key` header.
-- `PHISHGUARD_RATE` sets a per-client token-bucket rate limit (default 120/min).
-- `PHISHGUARD_ORIGINS` adds allowed CORS origins. Browser-extension origins are allowed by default.
+Deployment settings come from `PHISHGUARD_*` environment variables (full table in [docs/runbook.md](docs/runbook.md)):
+- `PHISHGUARD_API_KEYS` (or `PHISHGUARD_KEYS_FILE`) lists the API keys, stored as `sha256:<hex>` with a user and a role: `scanner` may scan, `monitor` reads `/metrics`, `admin` both. Callers send `X-API-Key` (the extension's Options page has a field for it) or `Authorization: Bearer`. Without keys the service runs in demo mode and only listens on loopback; `python -m phishguard.ops keygen` makes a key. `PHISHGUARD_ENV=production` refuses to start without hashed keys.
+- `PHISHGUARD_RATE_LIMIT` sets a per-client token-bucket rate limit (default 120/min); `PHISHGUARD_MAX_BODY_BYTES` caps request bodies (default 160 MB, enough for one APK).
+- `PHISHGUARD_CORS_ORIGINS` adds allowed CORS origins. Browser-extension origins are allowed by default.
 - Pages are only fetched server-side when `PHISHGUARD_FETCH=1`, and are never executed. Every hop, redirects included, must be http(s) to a public address, so the scanner cannot be used to reach localhost, private networks or cloud metadata endpoints.
 
 ## Models and real data
@@ -135,3 +143,20 @@ phishguard/
 web/index.html web scanner
 extension/     Manifest V3 browser extension
 ```
+
+## Production readiness
+
+**In place** (see [docs/runbook.md](docs/runbook.md), [docs/threat-model.md](docs/threat-model.md) and [docs/model-card.md](docs/model-card.md)):
+- Pinned dependencies (`requirements.lock`, with scikit-learn held at the version the shipped models were saved with), `pyproject.toml`, a container image that runs as a non-root user with a health check, and CI (ruff, bandit, pip-audit, tests with coverage).
+- Production mode that refuses to start without hashed per-client API keys, and no public listener without keys.
+- Roles on keys, per-client rate limits, a body size cap, security headers, CORS only for listed origins and browser extensions, errors that don't echo input or fetch failures, and the SSRF-safe page fetcher off by default.
+- JSON logs with request IDs, `/healthz`, `/readyz` (models loaded) and Prometheus metrics, including a count of safe / suspicious / dangerous verdicts.
+- The service keeps no state: nothing a customer submits is stored.
+
+**Still needed before customers rely on it**, none of which code can supply:
+- An independent security review and penetration test, especially of the APK and page parsers that read hostile files. Nobody outside this project has reviewed it.
+- Validation on the bank's own fraud reports. The real-data numbers come from a global phishing URL set and an English SMS spam set, not Indian payment scams; on PhiUSIIL the full verdict catches 41% of phishing hostnames.
+- RBI and DPDP Act 2023 sign-off on scanning customers' messages and browsing, including what the extension sends and whether messages may leave the device.
+- Real integrations: brand reference data and official signing certificates kept current by the bank, threat-intelligence feeds (CERT-In, NPCI, reported VPAs), and a route from a "dangerous" verdict to the bank's fraud desk.
+- A store-reviewed release of the extension pinned to the bank's API host, instead of the unpacked developer build.
+- TLS and a shared rate limiter at the ingress; an on-call team with SLOs and alerting on the metrics above.
