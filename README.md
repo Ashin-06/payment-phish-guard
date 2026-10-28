@@ -133,3 +133,7 @@ extension/     browser extension
 - The code has not had an independent security review, which matters most for the APK and page parsers that read hostile files. The browser extension also needs a store-reviewed release before customers use it.
 
 See [SECURITY.md](SECURITY.md), [docs/threat-model.md](docs/threat-model.md) and [docs/model-card.md](docs/model-card.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
