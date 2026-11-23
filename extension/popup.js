@@ -3,7 +3,7 @@ const ask = (msg) => new Promise((res) => chrome.runtime.sendMessage(msg, res));
 
 function render(v) {
   const reasons = v.findings.filter((f) => f.weight > 0).slice(0, 4).map((f) => `<li>${esc(f.message)}</li>`).join("");
-  return `<strong class="${v.level}">${v.level.toUpperCase()}</strong> · risk ${v.risk}/100${reasons ? `<ul>${reasons}</ul>` : ""}`;
+  return `<strong class="${esc(v.level)}">${esc(String(v.level).toUpperCase())}</strong> · risk ${esc(v.risk)}/100${reasons ? `<ul>${reasons}</ul>` : ""}`;
 }
 
 chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
