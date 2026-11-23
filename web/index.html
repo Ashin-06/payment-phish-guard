@@ -76,15 +76,15 @@ document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("cli
 }));
 
 function show(v) {
-  const pct = v.risk;
-  const ring = `conic-gradient(${color[v.level]} ${pct * 3.6}deg, var(--chip) 0deg)`;
+  const pct = Number(v.risk) || 0;
+  const ring = `conic-gradient(${color[v.level] || "var(--sus)"} ${pct * 3.6}deg, var(--chip) 0deg)`;
   const ents = Object.entries(v.entities || {}).filter(([k, val]) => k !== "analysed" && val && (!Array.isArray(val) || val.length));
   $("#result").innerHTML = `<div class="card">
     <div class="verdict">
-      <div class="gauge" style="background:${ring}"><div class="gauge" style="width:66px;height:66px;background:var(--card)">${pct}</div></div>
-      <div><div class="level ${v.level}">${esc(v.level)}</div><div class="hint">${esc(v.kind)} · risk ${pct}/100</div></div>
+      <div class="gauge" style="background:${ring}"><div class="gauge" style="width:66px;height:66px;background:var(--card)">${esc(pct)}</div></div>
+      <div><div class="level ${esc(v.level)}">${esc(v.level)}</div><div class="hint">${esc(v.kind)} · risk ${esc(pct)}/100</div></div>
     </div>
-    <ul class="f">${v.findings.map((f) => `<li><span class="w">${f.weight > 0 ? "+" : ""}${f.weight.toFixed(1)}</span><span>${esc(f.message)}</span></li>`).join("") || '<li><span class="w"></span><span>No warning signs found.</span></li>'}</ul>
+    <ul class="f">${v.findings.map((f) => `<li><span class="w">${f.weight > 0 ? "+" : ""}${esc(f.weight.toFixed(1))}</span><span>${esc(f.message)}</span></li>`).join("") || '<li><span class="w"></span><span>No warning signs found.</span></li>'}</ul>
     <div class="advice">${esc(v.advice)}</div>
     ${ents.length ? `<details><summary>Details</summary><pre>${esc(JSON.stringify(Object.fromEntries(ents), null, 2))}</pre></details>` : ""}
   </div>`;
